@@ -272,3 +272,11 @@ class TestScoringWeights:
     def test_invalid_weight(self):
         with pytest.raises(ValidationError):
             ScoringWeights(velocity=1.5)
+
+    def test_weights_must_sum_to_one(self):
+        with pytest.raises(ValidationError, match="Weights must sum to 1.0"):
+            ScoringWeights(velocity=0.5, geo=0.5, device=0.5, graph=0.5)
+
+    def test_custom_weights_summing_to_one(self):
+        sw = ScoringWeights(velocity=0.4, geo=0.1, device=0.4, graph=0.1)
+        assert sw.velocity == 0.4

@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class DecisionEnum(str, Enum):
@@ -101,7 +101,21 @@ class Rule(BaseModel):
 class ScoringWeights(BaseModel):
     """Weights for the risk scoring model components."""
 
-    velocity: float = Field(default=0.3, ge=0, le=1)
-    geo: float = Field(default=0.2, ge=0, le=1)
-    device: float = Field(default=0.3, ge=0, le=1)
-    graph: float = Field(default=0.2, ge=0, le=1)
+    velocity: float = 0.3
+    geo: float = 0.2
+    device: float = 0.3
+    graph: float = 0.2
+
+    @field_validator("velocity", "geo", "device", "graph")
+    @classmethod
+    def weight_range(cls, v: float) -> float:
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("Weight must be between 0.0 and 1.0")
+        return v
+
+    @model_validator(mode="after")
+    def weights_sum_to_one(self) -> "ScoringWeights":
+        total = self.velocity + self.geo + self.device + self.graph
+        if not (0.99 <= total <= 1.01):
+            raise ValueError(f"Weights must sum to 1.0, got {total}")
+        return self
