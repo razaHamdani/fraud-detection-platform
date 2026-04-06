@@ -48,3 +48,6 @@ models/*.pkl
 models/*.joblib
 models/*.h5
 *.onnx
+
+# Worktrees
+.worktrees/
