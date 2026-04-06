@@ -7,6 +7,7 @@ requires-python = ">=3.10"
 asyncio_mode = "auto"
 testpaths = ["services", "shared"]
 python_files = "test_*.py"
+addopts = "--import-mode=importlib"
 python_classes = "Test*"
 python_functions = "test_*"
 filterwarnings = ["ignore::DeprecationWarning"]
