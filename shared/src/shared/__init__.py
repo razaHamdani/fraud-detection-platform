@@ -15,7 +15,12 @@ from shared.models import (
     ScoringWeights,
     Transaction,
 )
-from shared.streams import RedisStreamConsumer, RedisStreamPublisher
+from shared.streams import (
+    RedisStreamConsumer,
+    RedisStreamPublisher,
+    StreamConsumer,
+    StreamPublisher,
+)
 
 __all__ = [
     # Models
@@ -33,6 +38,8 @@ __all__ = [
     # Streams
     "RedisStreamConsumer",
     "RedisStreamPublisher",
+    "StreamConsumer",
+    "StreamPublisher",
     # Feature store
     "RedisFeatureStore",
     # Logging

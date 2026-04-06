@@ -46,21 +46,27 @@ class TestRedisStreamConsumer:
     @pytest.fixture
     def consumer(self, redis_client):
         return RedisStreamConsumer(
-            redis_client, group="fraud-group", consumer_name="worker-1"
+            redis_client, stream="txn_stream", group="fraud-group", consumer_name="worker-1"
         )
 
     async def test_read(self, consumer, redis_client):
         result = await consumer.read(count=10, block=1000)
-        redis_client.xreadgroup.assert_awaited_once()
+        redis_client.xreadgroup.assert_awaited_once_with(
+            "fraud-group",
+            "worker-1",
+            streams={"txn_stream": ">"},
+            count=10,
+            block=1000,
+        )
         assert len(result) == 1
         assert result[0] == (b"1-0", {b"txn_id": b"abc"})
 
     async def test_ack(self, consumer, redis_client):
-        await consumer.ack("txn_stream", b"1-0")
+        await consumer.ack(b"1-0")
         redis_client.xack.assert_awaited_once_with("txn_stream", "fraud-group", b"1-0")
 
     async def test_ensure_group_creates_group(self, consumer, redis_client):
-        await consumer.ensure_group("txn_stream")
+        await consumer.ensure_group()
         redis_client.xgroup_create.assert_awaited_once()
 
     async def test_ensure_group_ignores_exists_error(self, consumer, redis_client):
@@ -70,7 +76,7 @@ class TestRedisStreamConsumer:
             side_effect=ResponseError("BUSYGROUP Consumer Group name already exists")
         )
         # Should not raise
-        await consumer.ensure_group("txn_stream")
+        await consumer.ensure_group()
 
     def test_implements_protocol(self, consumer):
         assert isinstance(consumer, StreamConsumer)

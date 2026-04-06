@@ -18,7 +18,7 @@ class StreamConsumer(Protocol):
 
     async def read(self, count: int, block: int) -> list[tuple]: ...
 
-    async def ack(self, stream: str, message_id: Any) -> None: ...
+    async def ack(self, message_id: Any) -> None: ...
 
 
 class RedisStreamPublisher:
@@ -35,9 +35,10 @@ class RedisStreamConsumer:
     """Consume messages from a Redis Stream via xreadgroup."""
 
     def __init__(
-        self, redis_client: Any, group: str, consumer_name: str
+        self, redis_client: Any, stream: str, group: str, consumer_name: str
     ) -> None:
         self._redis = redis_client
+        self._stream = stream
         self._group = group
         self._consumer_name = consumer_name
 
@@ -45,7 +46,7 @@ class RedisStreamConsumer:
         result = await self._redis.xreadgroup(
             self._group,
             self._consumer_name,
-            streams={">": ">"},
+            streams={self._stream: ">"},
             count=count,
             block=block,
         )
@@ -57,13 +58,13 @@ class RedisStreamConsumer:
             messages.extend(entries)
         return messages
 
-    async def ack(self, stream: str, message_id: Any) -> None:
-        await self._redis.xack(stream, self._group, message_id)
+    async def ack(self, message_id: Any) -> None:
+        await self._redis.xack(self._stream, self._group, message_id)
 
-    async def ensure_group(self, stream: str, start_id: str = "0") -> None:
+    async def ensure_group(self, start_id: str = "0") -> None:
         """Create consumer group, ignoring if it already exists."""
         try:
-            await self._redis.xgroup_create(stream, self._group, id=start_id, mkstream=True)
+            await self._redis.xgroup_create(self._stream, self._group, id=start_id, mkstream=True)
         except ResponseError as e:
             if "BUSYGROUP" not in str(e):
                 raise
