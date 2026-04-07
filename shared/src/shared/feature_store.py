@@ -7,6 +7,26 @@ from uuid import UUID
 FEATURE_TTL_SECONDS = 3600
 
 # Lua script for atomic sliding window counter
+_RECORD_SUM_SCRIPT = """
+local key = KEYS[1]
+local member = ARGV[1]
+local score = tonumber(ARGV[2])
+local amount = tonumber(ARGV[3])
+local cutoff = tonumber(ARGV[4])
+local ttl = tonumber(ARGV[5])
+
+redis.call('ZADD', key, score, member .. ':' .. tostring(amount))
+redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
+local members = redis.call('ZRANGE', key, 0, -1)
+local total = 0
+for _, m in ipairs(members) do
+    local amt = string.match(m, ':(.+)$')
+    if amt then total = total + tonumber(amt) end
+end
+redis.call('EXPIRE', key, ttl)
+return tostring(total)
+"""
+
 _RECORD_AND_COUNT_SCRIPT = """
 local key = KEYS[1]
 local member = ARGV[1]
@@ -28,6 +48,7 @@ class RedisFeatureStore:
     def __init__(self, redis_client: Any) -> None:
         self._redis = redis_client
         self._record_and_count_sha: Optional[str] = None
+        self._record_sum_sha: Optional[str] = None
 
     async def _ensure_script(self) -> str:
         """Register the Lua script and cache its SHA."""
@@ -36,6 +57,14 @@ class RedisFeatureStore:
                 _RECORD_AND_COUNT_SCRIPT
             )
         return self._record_and_count_sha
+
+    async def _ensure_sum_script(self) -> str:
+        """Register the sum Lua script and cache its SHA."""
+        if self._record_sum_sha is None:
+            self._record_sum_sha = await self._redis.script_load(
+                _RECORD_SUM_SCRIPT
+            )
+        return self._record_sum_sha
 
     async def record_and_count(
         self,
@@ -55,6 +84,29 @@ class RedisFeatureStore:
 
         sha = await self._ensure_script()
         return await self._redis.evalsha(sha, 1, key, member, now, cutoff, ttl)
+
+    async def record_sum(
+        self,
+        key: str,
+        window_seconds: int,
+        member: str,
+        amount: float,
+        timestamp: Optional[float] = None,
+    ) -> float:
+        """Add member with amount to sorted set and return sum within window.
+
+        Uses an atomic Lua script to ZADD + ZREMRANGEBYSCORE + sum + EXPIRE.
+        Sets TTL to window_seconds * 2.
+        """
+        now = timestamp or time.time()
+        cutoff = now - window_seconds
+        ttl = window_seconds * 2
+
+        sha = await self._ensure_sum_script()
+        result = await self._redis.evalsha(
+            sha, 1, key, member, now, amount, cutoff, ttl
+        )
+        return float(result)
 
     async def store_features(self, txn_id: UUID, features: dict) -> None:
         """Store feature dict as a Redis hash with TTL."""
