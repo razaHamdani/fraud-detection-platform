@@ -4,7 +4,10 @@ version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
     "fraud-shared",
+    "asyncpg>=0.29,<1",
     "fastapi>=0.109,<1",
+    "redis>=5.0,<6",
+    "structlog>=24.1,<25",
     "uvicorn[standard]>=0.27,<1",
 ]
 
