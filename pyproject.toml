@@ -5,7 +5,8 @@ requires-python = ">=3.10"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["services", "shared"]
+testpaths = ["services", "shared", "tests"]
+markers = ["integration: mark test as integration test (requires Docker services)"]
 python_files = "test_*.py"
 addopts = "--import-mode=importlib"
 python_classes = "Test*"
