@@ -4,7 +4,9 @@ __version__ = "0.1.0"
 
 from shared.config import Settings, get_settings
 from shared.feature_store import RedisFeatureStore
+from shared.health import HealthChecker
 from shared.logging import get_logger, setup_logging
+from shared.middleware import RequestIdMiddleware
 from shared.models import (
     Chargeback,
     Decision,
@@ -42,7 +44,11 @@ __all__ = [
     "StreamPublisher",
     # Feature store
     "RedisFeatureStore",
+    # Health
+    "HealthChecker",
     # Logging
     "setup_logging",
     "get_logger",
+    # Middleware
+    "RequestIdMiddleware",
 ]

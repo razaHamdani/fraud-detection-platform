@@ -4,6 +4,8 @@ import pytest
 from unittest.mock import AsyncMock
 from httpx import ASGITransport, AsyncClient
 
+from shared.health import HealthChecker
+
 
 @pytest.mark.asyncio
 async def test_rate_limiting_allows_normal_traffic():
@@ -15,6 +17,7 @@ async def test_rate_limiting_allows_normal_traffic():
         b"risk_score": b"0.2", b"decision": b"APPROVE",
         b"breakdown_json": b"[]", b"rules_triggered": b"[]",
     })
+    state.health_checker = HealthChecker(service_name="decision-api")
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.get("/health")

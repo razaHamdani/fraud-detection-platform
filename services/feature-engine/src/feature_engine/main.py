@@ -10,6 +10,8 @@ from neo4j import GraphDatabase
 
 from shared.config import get_settings
 from shared.feature_store import RedisFeatureStore
+from shared.health import HealthChecker
+from shared.middleware import RequestIdMiddleware
 from shared.streams import RedisStreamPublisher
 
 from feature_engine.geo import GeoCalculator
@@ -48,6 +50,9 @@ async def lifespan(app: FastAPI):
     worker_task = asyncio.create_task(
         run_worker(redis, orchestrator, feature_store, publisher)
     )
+    app.state.health_checker = HealthChecker(
+        redis=redis, neo4j_driver=neo4j_driver, service_name="feature-engine"
+    )
     logger.info("Feature engine service started")
 
     yield
@@ -65,8 +70,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Feature Engine", version="0.1.0", lifespan=lifespan)
+app.add_middleware(RequestIdMiddleware)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "feature-engine"}
+    return await app.state.health_checker.check()

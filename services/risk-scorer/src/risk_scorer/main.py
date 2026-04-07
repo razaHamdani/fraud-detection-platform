@@ -8,7 +8,9 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI
 
 from shared.config import get_settings
+from shared.health import HealthChecker
 from shared.logging import setup_logging, get_logger
+from shared.middleware import RequestIdMiddleware
 from shared.models import ScoringWeights
 from risk_scorer.worker import run_worker
 
@@ -22,6 +24,9 @@ async def lifespan(app: FastAPI):
     pg_pool = await asyncpg.create_pool(settings.postgres_dsn)
     weights = ScoringWeights()  # TODO: load from Postgres
 
+    app.state.health_checker = HealthChecker(
+        redis=redis, pg_pool=pg_pool, service_name="risk-scorer"
+    )
     worker_task = asyncio.create_task(run_worker(redis, pg_pool, weights))
     get_logger().info("risk-scorer started")
     yield
@@ -35,8 +40,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Risk Scorer", version="0.1.0", lifespan=lifespan)
+app.add_middleware(RequestIdMiddleware)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "risk-scorer"}
+    return await app.state.health_checker.check()
