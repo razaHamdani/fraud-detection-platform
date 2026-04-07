@@ -12,12 +12,9 @@ from shared.logging import setup_logging, get_logger
 from shared.models import ScoringWeights
 from risk_scorer.worker import run_worker
 
-_worker_task: asyncio.Task | None = None
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _worker_task
     settings = get_settings()
     setup_logging(service_name="risk-scorer", log_level=settings.log_level)
 
@@ -25,10 +22,14 @@ async def lifespan(app: FastAPI):
     pg_pool = await asyncpg.create_pool(settings.postgres_dsn)
     weights = ScoringWeights()  # TODO: load from Postgres
 
-    _worker_task = asyncio.create_task(run_worker(redis, pg_pool, weights))
+    worker_task = asyncio.create_task(run_worker(redis, pg_pool, weights))
     get_logger().info("risk-scorer started")
     yield
-    _worker_task.cancel()
+    worker_task.cancel()
+    try:
+        await worker_task
+    except asyncio.CancelledError:
+        pass
     await pg_pool.close()
     await redis.aclose()
 

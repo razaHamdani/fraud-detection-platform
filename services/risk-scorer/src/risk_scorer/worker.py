@@ -5,14 +5,14 @@ import json
 
 import asyncpg
 import redis.asyncio as aioredis
-import structlog
 
+from shared.logging import get_logger
 from shared.models import FeatureSet, ScoringWeights
 from shared.streams import RedisStreamConsumer, RedisStreamPublisher
 from risk_scorer.scoring import compute_risk_score
 from risk_scorer.rules import apply_rules, DEFAULT_RULES
 
-logger = structlog.get_logger()
+logger = get_logger()
 
 
 async def store_decision_pg(pool: asyncpg.Pool, decision_data: dict) -> None:
@@ -28,22 +28,6 @@ async def store_decision_pg(pool: asyncpg.Pool, decision_data: dict) -> None:
         decision_data["decision"],
         json.dumps(decision_data["breakdown"]),
         decision_data["rules_triggered"],
-    )
-
-
-async def store_transaction_pg(pool: asyncpg.Pool, txn_data: dict) -> None:
-    """Persist transaction to PostgreSQL (idempotent)."""
-    await pool.execute(
-        """
-        INSERT INTO transactions (txn_id, user_id, amount, currency, merchant_id, mcc, timestamp,
-                                  latitude, longitude, device_fingerprint, ip_address)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-        ON CONFLICT (txn_id) DO NOTHING
-        """,
-        txn_data["txn_id"], txn_data["user_id"], txn_data["amount"],
-        txn_data["currency"], txn_data["merchant_id"], txn_data["mcc"],
-        txn_data["timestamp"], txn_data["latitude"], txn_data["longitude"],
-        txn_data["device_fingerprint"], txn_data["ip_address"],
     )
 
 
@@ -101,8 +85,15 @@ async def run_worker(
                 await redis.expire(f"decision:{decision.txn_id}", 3600)
 
                 await consumer.ack(msg_id)
-                logger.info("transaction_scored", txn_id=str(decision.txn_id),
-                           score=decision.risk_score, decision=decision.decision.value)
+                logger.info(
+                    "transaction_scored",
+                    txn_id=str(decision.txn_id),
+                    score=decision.risk_score,
+                    decision=decision.decision.value,
+                )
 
             except Exception as e:
                 logger.error("scoring_failed", msg_id=msg_id, error=str(e))
+                # ACK to prevent infinite retry on poison messages;
+                # a dead-letter queue would be better but is out of scope
+                await consumer.ack(msg_id)

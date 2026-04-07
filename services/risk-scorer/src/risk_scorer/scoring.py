@@ -34,7 +34,7 @@ def device_score(f: FeatureSet) -> float:
 def graph_score(f: FeatureSet) -> float:
     """Map graph features to 0.0-1.0 risk score."""
     score = 0.0
-    score += (1.0 if f.graph_risk_cluster else 0.0) * 0.6
+    score += min(f.graph_risk_cluster, 1.0) * 0.6
     score += min(f.shared_device_count / 5.0, 1.0) * 0.2
     score += min(f.shared_ip_count / 5.0, 1.0) * 0.2
     return min(score, 1.0)

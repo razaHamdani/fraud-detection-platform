@@ -51,9 +51,10 @@ async def process_message(
     feature_dict = {k: str(v) for k, v in features.model_dump().items()}
     await feature_store.store_features(features.txn_id, feature_dict)
 
-    # Publish enriched transaction
+    # Publish enriched transaction with JSON-native types (not str coercion)
+    # to preserve bool/int/float types for downstream consumers
     enriched = dict(decoded)
-    enriched["features_json"] = json.dumps(feature_dict)
+    enriched["features_json"] = features.model_dump_json()
     await publisher.publish(ENRICHED_STREAM, enriched)
 
     # Acknowledge the message
