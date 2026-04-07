@@ -6,6 +6,9 @@ dependencies = [
     "fraud-shared",
     "fastapi>=0.109,<1",
     "uvicorn[standard]>=0.27,<1",
+    "asyncpg>=0.29,<1",
+    "redis>=5.0,<6",
+    "structlog>=24.1,<25",
 ]
 
 [project.optional-dependencies]
